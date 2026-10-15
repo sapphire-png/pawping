@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
 import '../../core/constants/app_color.dart';
 import '../../widgets/bottom_navbar.dart';
@@ -25,18 +26,74 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool _alarmOn = true;
   bool _monitoringOn = true;
-  bool _nearDoor = true; // true = Move!, false = Safe
+
+  int _gerak = 0; // 1 = ada pergerakan, 0 = tidak ada
+  double? _jarak; // jarak terbaru dari sensor (cm)
+  DateTime? _lastDetected; // waktu terakhir gerak = 1
+  StreamSubscription<DatabaseEvent>? _sensorSub;
+
+  // true kalau hewan bergerak (Move!), false kalau Safe
+  bool get _nearDoor => _gerak == 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenSensor();
+  }
+
+  void _listenSensor() {
+    _sensorSub = FirebaseDatabase.instance
+        .ref("sensor/latest")
+        .onValue
+        .listen((event) {
+      final raw = event.snapshot.value;
+      if (raw is! Map) return;
+
+      final data = Map<dynamic, dynamic>.from(raw);
+      final g = data['gerak'];
+      final j = data['jarak'];
+      final w = data['waktu'];
+
+      final int gerak = g is num ? g.toInt() : (int.tryParse('$g') ?? 0);
+      final double? jarak =
+          j is num ? j.toDouble() : double.tryParse('$j');
+      final int? waktu = w is num ? w.toInt() : int.tryParse('$w');
+
+      if (!mounted) return;
+      setState(() {
+        _gerak = gerak;
+        _jarak = jarak;
+        if (gerak == 1 && waktu != null) {
+          _lastDetected = DateTime.fromMillisecondsSinceEpoch(waktu);
+        }
+      });
+    }, onError: (e) => debugPrint('SENSOR ERROR: $e'));
+  }
+
+  @override
+  void dispose() {
+    _sensorSub?.cancel();
+    super.dispose();
+  }
 
   void _toggleMonitoring() {
     setState(() => _monitoringOn = !_monitoringOn);
   }
 
+  // format jam, contoh: 8:30 AM
+  String _formatTime(DateTime t) {
+    final h = t.hour % 12 == 0 ? 12 : t.hour % 12;
+    final m = t.minute.toString().padLeft(2, '0');
+    final ampm = t.hour >= 12 ? 'PM' : 'AM';
+    return '$h:$m $ampm';
+  }
+
   // gaya teks pixel dan text body
   TextStyle _pixel(double size, Color color) =>
-    GoogleFonts.pressStart2p(fontSize: size, color: color);
+      GoogleFonts.pressStart2p(fontSize: size, color: color);
   TextStyle _body(double size, Color color) =>
-    GoogleFonts.vt323(fontSize: size, color: color);
-    
+      GoogleFonts.vt323(fontSize: size, color: color);
+
   void _onNavTap(int index) {
     if (index == 1) {
       Navigator.push(
@@ -45,7 +102,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       );
     }
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -57,7 +114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: Container(
               width: double.infinity,
-              decoration:  BoxDecoration(
+              decoration: BoxDecoration(
                 color: AppColor.cream,
                 borderRadius: BorderRadius.vertical(
                   top: Radius.elliptical(300, 50),
@@ -119,9 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-
             SizedBox(height: 22),
-
             Row(
               children: [
                 Flexible(
@@ -143,9 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-
             SizedBox(height: 5),
-
             Text(
               "Let's monitor your pet today!",
               style: _body(15, AppColor.white),
@@ -196,80 +249,88 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final on = _monitoringOn;
     final near = _nearDoor;
 
-    final Color dotColor = !on 
-      ? AppColor.grey 
-      : (near ? AppColor.red : AppColor.green);
+    final Color dotColor = !on
+        ? AppColor.grey
+        : (near ? AppColor.red : AppColor.green);
     final String statusText = !on ? 'Standby' : (near ? 'Move!' : 'Safe');
     final String message = !on
         ? 'Monitoring is turned off'
         : (near
             ? 'Movement detected at the door!'
             : 'No movement near the door');
+    final String lastDetected =
+        _lastDetected == null ? '-' : _formatTime(_lastDetected!);
 
-    return GestureDetector(
-      onTap: () => setState(() => _nearDoor = !_nearDoor),
-      child: _card(
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.pets,
-                  size: 70,
-                  color: on ? AppColor.navy : AppColor.grey,
+    return _card(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.pets,
+                size: 70,
+                color: on ? AppColor.navy : AppColor.grey,
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Paw Detector',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: on ? AppColor.navy : AppColor.grey,
+                      ),
+                    ),
+                    SizedBox(height: 13),
+                    Row(
+                      children: [
+                        Icon(Icons.circle, size: 10, color: dotColor),
+                        SizedBox(width: 6),
+                        Text(statusText, style: _pixel(10, AppColor.navy)),
+                      ],
+                    ),
+                    SizedBox(height: 6),
+                    Text(message, style: _body(13, AppColor.grey)),
+                    Text(
+                      on
+                          ? 'Last detected: $lastDetected'
+                          : 'Tap the pill to turn on',
+                      style: _body(13, AppColor.grey),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Paw Detector',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: on ? AppColor.navy : AppColor.grey,
-                        ),
-                      ),
-                      SizedBox(height: 13),
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.circle,
-                            size: 10,
-                            color: dotColor,
-                          ),
-                          SizedBox(width: 6),
-                          Text(
-                            statusText,
-                            style: _pixel(10, AppColor.navy),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 6),
-                      Text(message, style: _body(13, AppColor.grey)),
-                      Text(
-                        on ? 'Last detected: 8:30 AM' : 'Tap the pill to turn on',
-                        style: _body(13, AppColor.grey),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const Divider(height: 24),
-            _infoRow(Icons.directions_run, 'Motion:',
-                !on ? '-' : (near ? 'Detected' : 'None')),
-            const SizedBox(height: 4),
-            _infoRow(Icons.straighten, 'Range:', !on ? '-' : (near ? '~0 m' : '-')),
-          ],
-        ),
+              ),
+            ],
+          ),
+          const Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _infoRow(
+                Icons.directions_run,
+                'Motion:',
+                !on ? '-' : (near ? 'Detected' : 'None'),
+              ),
+              _infoRow(
+                Icons.straighten,
+                'Range:',
+                (!on || _jarak == null)
+                    ? '-'
+                    : '${_jarak!.toStringAsFixed(1)} cm',
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _infoRow(IconData icon, String label, String value) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: 14, color: AppColor.navy),
         SizedBox(width: 6),
@@ -302,16 +363,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           SizedBox(height: 6),
-          Center(
-            child: Text(
-              !on
-                  ? 'Monitoring off'
-                  : !_alarmOn
-                      ? 'Alarm off'
-                      : (_nearDoor ? 'BEEPING! : 8:45 AM' : 'Alarm ready'),
-              style: _body(15, AppColor.navy),
-            ),
-          ),
         ],
       ),
     );
@@ -327,10 +378,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
         String breed = widget.petBreed;
 
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          var data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
-          name = data['name'] ?? widget.petName;
-          age = data['age'] ?? widget.petAge;
-          breed = data['breed'] ?? widget.petBreed;
+          final data = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+          name = (data['name'] ?? widget.petName).toString();
+          age = (data['age'] ?? widget.petAge).toString();
+          breed = (data['breed'] ?? widget.petBreed).toString();
         }
 
         return _card(
