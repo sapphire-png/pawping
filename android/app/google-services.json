@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "347011716292",
+    "firebase_url": "https://pawping-97cb4-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "pawping-97cb4",
+    "storage_bucket": "pawping-97cb4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:347011716292:android:212dc9ed408c799e64e591",
+        "android_client_info": {
+          "package_name": "com.example.pawping"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDWLFvjpAM_kZFAoLS-hiGqIkBin2DFndQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
