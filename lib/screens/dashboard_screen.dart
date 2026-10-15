@@ -32,6 +32,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime? _lastDetected; // waktu terakhir gerak = 1
   StreamSubscription<DatabaseEvent>? _sensorSub;
 
+  // Variabel pengaman agar pop-up tidak muncul berulang kali secara bertumpuk
+  bool _isDialogShowing = false;
+
   // true kalau hewan bergerak (Move!), false kalau Safe
   bool get _nearDoor => _gerak == 1;
 
@@ -67,6 +70,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _lastDetected = DateTime.fromMillisecondsSinceEpoch(waktu);
         }
       });
+
+      // Memunculkan pop-up kustom ketika ada gerakan terdeteksi
+      if (gerak == 1 && !_isDialogShowing && mounted && _monitoringOn) {
+        _isDialogShowing = true;
+
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              contentPadding: const EdgeInsets.all(24),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.circle, size: 12, color: AppColor.red),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Movement Detected',
+                        style: _pixel(11, AppColor.navy),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 24),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Hooman, Pet movement detected!',
+                    style: _body(18, AppColor.navy),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColor.cream,
+                      foregroundColor: AppColor.navy,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: const BorderSide(color: AppColor.navy, width: 1.5),
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+                    ),
+                    onPressed: () {
+                      _isDialogShowing = false;
+                      Navigator.of(context).pop(); // Menutup pop-up
+                    },
+                    child: Text(
+                      'Ignore Alert',
+                      style: _pixel(9, AppColor.navy),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      }
     }, onError: (e) => debugPrint('SENSOR ERROR: $e'));
   }
 

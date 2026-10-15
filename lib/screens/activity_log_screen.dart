@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:intl/intl.dart';
 import '../../core/constants/app_color.dart';
 import '../../data/models/activity_log_model.dart';
 import '../../widgets/bottom_navbar.dart';
@@ -16,51 +18,10 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
   final _filters = ['All', 'Safe', 'Alarm', 'Ignore'];
   int _selected = 0;
 
-  // masih data dummy
-  final _logs = const [
-    ActivityLog(
-      date: 'Saturday, 05 Sep 2026',
-      time: '12.00 PM',
-      type: ActivityType.alarm,
-      message: 'Pet detected triggered.',
-      motion: 'Detected',
-      range: '40 meter',
-    ),
-    ActivityLog(
-      date: 'Saturday, 05 Sep 2026',
-      time: '6.00 PM',
-      type: ActivityType.safe,
-      message: 'Area clear',
-      motion: 'Clear',
-      range: '120 meter',
-    ),
-    ActivityLog(
-      date: 'Thursday, 04 Sep 2026',
-      time: '11.00 PM',
-      type: ActivityType.ignored,
-      message: 'Pet detected triggered.',
-      motion: 'Detected',
-      range: '20 meter',
-    ),
-  ];
-
   TextStyle _pixel(double size, Color color) =>
       GoogleFonts.pressStart2p(fontSize: size, color: color);
   TextStyle _body(double size, Color color) =>
       GoogleFonts.vt323(fontSize: size, color: color);
-
-  List<ActivityLog> get _filtered {
-    switch(_selected) {
-      case 1:
-        return _logs.where((l) => l.type == ActivityType.safe).toList();
-      case 2:
-        return _logs.where((l) => l.type == ActivityType.alarm).toList();
-      case 3:
-        return _logs.where((l) => l.type == ActivityType.ignored).toList();
-      default:
-        return _logs;
-    }
-  }
 
   Color _dotColor(ActivityType t) {
     switch (t) {
@@ -86,14 +47,12 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _filtered;
-
     return Scaffold(
       backgroundColor: AppColor.navy,
       bottomNavigationBar: BottomNavbar(
         currentIndex: 1, 
         onTap: (i) {
-          if (i == 0) Navigator.pop(context); // dia nanti balik ke dashboard
+          if (i == 0) Navigator.pop(context); // balik ke dashboard
         },
       ),
       body: Column(
@@ -102,29 +61,104 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
           Expanded(
             child: Container(
               width: double.infinity,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppColor.cream,
                 borderRadius: BorderRadius.vertical(
                   top: Radius.elliptical(300, 50),
                 ),
               ),
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(20, 28, 20, 20),
-                children: [
-                  _filterChips(),
-                  SizedBox(height: 18),
-                  if (items.isEmpty)
-                    Padding(
-                      padding: EdgeInsets.only(top: 40),
-                      child: Center(
-                        child: Text(
-                          'No activity yet',
-                          style: _body(16, AppColor.grey),
+              child: StreamBuilder(
+                // Mengambil data dari node 'sensor/log'[cite: 10]
+                stream: FirebaseDatabase.instance.ref("sensor/log").onValue,
+                builder: (context, snapshot) {
+                  List<ActivityLog> logs = [];
+                  List<Map<String, dynamic>> rawList = [];
+
+                  if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+                    final rawData = snapshot.data!.snapshot.value as Map<dynamic, dynamic>;
+
+                    // Masukkan semua data ke dalam list sementara
+                    rawData.forEach((key, value) {
+                      final mapVal = Map<String, dynamic>.from(value);
+                      rawList.add(mapVal);
+                    });
+
+                    // Urutkan berdasarkan milidetik waktu (terbaru/terbesar di atas)
+                    rawList.sort((a, b) => (b['waktu'] ?? 0).compareTo(a['waktu'] ?? 0));
+
+                    for (var mapVal in rawList) {
+                      final int gerak = mapVal['gerak'] ?? 0;
+                      final dynamic jarak = mapVal['jarak'] ?? 0.0;
+                      
+                      // Konversi waktu milidetik dari database[cite: 10]
+                      var rawWaktu = mapVal['waktu'];
+                      DateTime dateTime = DateTime.now();
+                      if (rawWaktu != null) {
+                        int millis = rawWaktu is int ? rawWaktu : int.tryParse(rawWaktu.toString()) ?? 0;
+                        if (millis > 0) {
+                          dateTime = DateTime.fromMillisecondsSinceEpoch(millis);
+                        }
+                      }
+
+                      // Format tanggal dan jam menggunakan package intl[cite: 10]
+                      final dateFormatter = DateFormat('EEEE, dd MMM yyyy');
+                      final timeFormatter = DateFormat('hh:mm a');
+
+                      String formattedDate = dateFormatter.format(dateTime);
+                      String formattedTime = timeFormatter.format(dateTime);
+
+                      // Tentukan tipe aktivitas berdasarkan data sensor[cite: 10]
+                      ActivityType type = gerak == 1 ? ActivityType.alarm : ActivityType.safe;
+                      String message = gerak == 1 ? 'Pet detected triggered.' : 'Area clear';
+                      String motionStr = gerak == 1 ? 'Detected' : 'Clear';
+                      String rangeStr = '$jarak cm';
+
+                      logs.add(ActivityLog(
+                        date: formattedDate,
+                        time: formattedTime,
+                        type: type,
+                        message: message,
+                        motion: motionStr,
+                        range: rangeStr,
+                      ));
+                    }
+                  }
+
+                  // Filter berdasarkan pilihan chip[cite: 10]
+                  List<ActivityLog> filtered;
+                  switch (_selected) {
+                    case 1:
+                      filtered = logs.where((l) => l.type == ActivityType.safe).toList();
+                      break;
+                    case 2:
+                      filtered = logs.where((l) => l.type == ActivityType.alarm).toList();
+                      break;
+                    case 3:
+                      filtered = logs.where((l) => l.type == ActivityType.ignored).toList();
+                      break;
+                    default:
+                      filtered = logs;
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+                    children: [
+                      _filterChips(),
+                      const SizedBox(height: 18),
+                      if (filtered.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 40),
+                          child: Center(
+                            child: Text(
+                              'No activity yet',
+                              style: _body(16, AppColor.grey),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ...items.map(_logCard),
-                ],
+                      ...filtered.map(_logCard),
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -133,12 +167,12 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     );
   }
 
-  //  header
+  // Header[cite: 10]
   Widget _header() {
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: EdgeInsets.fromLTRB(20, 12, 20, 22),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -149,13 +183,9 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                   width: 30,
                   filterQuality: FilterQuality.none,
                 ),
-                SizedBox(width: 8),
-                Text(
-                  'PAWPING',
-                  style: _pixel(10, AppColor.white),
-                ),
-                Spacer(),
-                // tap lonceng -> buka halaman Notifications
+                const SizedBox(width: 8),
+                Text('PAWPING', style: _pixel(10, AppColor.white)),
+                const Spacer(),
                 GestureDetector(
                   onTap: () => Navigator.push(
                     context,
@@ -163,7 +193,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                       builder: (_) => const NotificationScreen(),
                     ),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.notifications,
                     color: AppColor.white,
                     size: 18,
@@ -171,9 +201,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                 ),
               ],
             ),
-
-            SizedBox(height: 22),
-
+            const SizedBox(height: 22),
             Text(
               'Activity Log',
               style: TextStyle(
@@ -182,9 +210,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-
-            SizedBox(height: 4),
-
+            const SizedBox(height: 4),
             Text(
               'Track your pet movement and alarms!',
               style: _body(15, AppColor.white),
@@ -195,7 +221,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     );
   }
 
-  // chip filter: All / Safe / Alarm / Ignore
+  // Chip filter[cite: 10]
   Widget _filterChips() {
     return Wrap(
       spacing: 8,
@@ -205,8 +231,8 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
         return GestureDetector(
           onTap: () => setState(() => _selected = i),
           child: AnimatedContainer(
-            duration: Duration(milliseconds: 150),
-            padding: EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
             decoration: BoxDecoration(
               color: active ? AppColor.navy : AppColor.cream,
               borderRadius: BorderRadius.circular(20),
@@ -222,15 +248,15 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     );
   }
 
-  // satu kartu log
+  // Satu kartu log[cite: 10]
   Widget _logCard(ActivityLog log) {
     return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColor.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3)),
         ],
       ),
@@ -245,14 +271,14 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               Text(log.time, style: _pixel(7, AppColor.navy)),
             ],
           ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           Row(
             children: [
               Icon(Icons.circle, size: 10, color: _dotColor(log.type)),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               Text(
                 _label(log.type),
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
                   color: AppColor.navy,
@@ -260,13 +286,13 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
               ),
             ],
           ),
-          SizedBox(height: 2),
+          const SizedBox(height: 2),
           Text(log.message, style: _body(15, AppColor.navy)),
-          Divider(height: 20),
+          const Divider(height: 20),
           Row(
             children: [
               _info(Icons.directions_run, 'Motion:', log.motion),
-              Spacer(),
+              const Spacer(),
               _info(Icons.straighten, 'Range:', log.range),
             ],
           ),
@@ -279,7 +305,7 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
     return Row(
       children: [
         Icon(icon, size: 13, color: AppColor.navy),
-        SizedBox(width: 4),
+        const SizedBox(width: 4),
         Text('$label $value', style: _body(14, AppColor.navy)),
       ],
     );

@@ -52,7 +52,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 ),
               ),
               child: StreamBuilder(
-                // Kita arahkan ke node 'sensor/log' tempat data riwayat sensor disimpan
                 stream: FirebaseDatabase.instance.ref("sensor/log").onValue,
                 builder: (context, snapshot) {
                   List<NotificationModel> items = [];
@@ -63,25 +62,32 @@ class _NotificationScreenState extends State<NotificationScreen> {
                     rawData.forEach((key, value) {
                       final mapVal = Map<String, dynamic>.from(value);
                       
-                      // Ambil data gerak dan jarak dari sensor temanmu
                       final int gerak = mapVal['gerak'] ?? 0;
                       final dynamic jarak = mapVal['jarak'] ?? 0.0;
 
-                      // Tentukan judul dan pesan berdasarkan data sensor
                       String title = gerak == 1 ? 'Movement Detected' : 'Area Safe';
                       String message = gerak == 1 
                           ? 'Gerakan terdeteksi di dekat pintu dengan jarak $jarak cm.' 
                           : 'Tidak ada gerakan di dekat pintu. Area aman.';
                       
-                      // Tipe notifikasi berdasarkan model kamu
                       NotificationType type = gerak == 1 ? NotificationType.movement : NotificationType.safe;
+
+                      var rawWaktu = mapVal['waktu'];
+                      DateTime createdAt = DateTime.now();
+                      
+                      if (rawWaktu != null) {
+                        int millis = rawWaktu is int ? rawWaktu : int.tryParse(rawWaktu.toString()) ?? 0;
+                        if (millis > 0) {
+                          createdAt = DateTime.fromMillisecondsSinceEpoch(millis);
+                        }
+                      }
 
                       final jsonMap = {
                         'id': key.toString(),
                         'type': type.name,
                         'title': title,
                         'message': message,
-                        'created_at': DateTime.now().toIso8601String(), // Bisa disesuaikan jika ada waktu dari sensor
+                        'created_at': createdAt.toIso8601String(),
                       };
 
                       items.add(NotificationModel.fromJson(jsonMap));
@@ -91,11 +97,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   if (items.isEmpty) {
                     return Center(
                       child: Text(
-                        'Belum ada data sensor/notifikasi',
+                        'Belum ada data sensor',
                         style: GoogleFonts.lato(fontSize: 14, color: AppColor.grey),
                       ),
                     );
                   }
+
+                  items.sort((b, a) => a.createdAt.compareTo(b.createdAt));
 
                   final today = items.where((n) => n.isToday).toList();
                   final earlier = items.where((n) => !n.isToday).toList();
