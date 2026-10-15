@@ -140,22 +140,34 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
                       filtered = logs;
                   }
 
-                  return ListView(
-                    padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _filterChips(),
+                      // filter: tetap diam, tidak ikut scroll
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+                        child: _filterChips(),
+                      ),
                       const SizedBox(height: 18),
-                      if (filtered.isEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 40),
-                          child: Center(
-                            child: Text(
-                              'No activity yet',
-                              style: _body(16, AppColor.grey),
-                            ),
-                          ),
+                      // hanya daftar kartu yang scroll
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                          children: [
+                            if (filtered.isEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 40),
+                                child: Center(
+                                  child: Text(
+                                    'No activity yet',
+                                    style: _body(16, AppColor.grey),
+                                  ),
+                                ),
+                              ),
+                            ...filtered.map(_logCard),
+                          ],
                         ),
-                      ...filtered.map(_logCard),
+                      ),
                     ],
                   );
                 },
@@ -222,29 +234,34 @@ class _ActivityLogScreenState extends State<ActivityLogScreen> {
   }
 
   // Chip filter[cite: 10]
+   // Chip filter
   Widget _filterChips() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: List.generate(_filters.length, (i) {
-        final active = _selected == i;
-        return GestureDetector(
-          onTap: () => setState(() => _selected = i),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-            decoration: BoxDecoration(
-              color: active ? AppColor.navy : AppColor.cream,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColor.navy, width: 1.5),
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.center, // chip rata tengah
+        spacing: 8,
+        runSpacing: 8,
+        children: List.generate(_filters.length, (i) {
+          final active = _selected == i;
+          return GestureDetector(
+            onTap: () => setState(() => _selected = i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: active ? AppColor.navy : AppColor.cream,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColor.navy, width: 1.5),
+              ),
+              child: Text(
+                _filters[i],
+                style: _pixel(9, active ? AppColor.white : AppColor.navy),
+              ),
             ),
-            child: Text(
-              _filters[i],
-              style: _pixel(9, active ? AppColor.white : AppColor.navy),
-            ),
-          ),
-        );
-      }),
+          );
+        }),
+      ),
     );
   }
 

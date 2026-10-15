@@ -32,6 +32,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DateTime? _lastDetected; // waktu terakhir gerak = 1
   StreamSubscription<DatabaseEvent>? _sensorSub;
 
+  // control/monitoring : perintah on/off sensor dari aplikasi -> alat (1 / 0)
+  final DatabaseReference _monitoringRef =
+      FirebaseDatabase.instance.ref('control/monitoring');
+  StreamSubscription<DatabaseEvent>? _monitoringSub;
+
+  // control/alarm : perintah on/off buzzer dari aplikasi -> alat (1 / 0)
+  final DatabaseReference _alarmRef =
+      FirebaseDatabase.instance.ref('control/alarm');
+  StreamSubscription<DatabaseEvent>? _alarmSub;
+
   // Variabel pengaman agar pop-up tidak muncul berulang kali secara bertumpuk
   bool _isDialogShowing = false;
 
@@ -42,6 +52,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _listenSensor();
+    _listenMonitoring();
+    _listenAlarm();
   }
 
   void _listenSensor() {
@@ -134,14 +146,68 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }, onError: (e) => debugPrint('SENSOR ERROR: $e'));
   }
 
+  // baca status monitoring dari database, supaya tampilan selalu sama
+  // dengan database (kalau diubah dari alat / perangkat lain)
+  void _listenMonitoring() {
+    _monitoringSub = _monitoringRef.onValue.listen((event) {
+      final v = event.snapshot.value;
+      if (v == null) return; // node belum ada, pakai nilai bawaan (ON)
+
+      final on = v == 1 || v == true || v == '1';
+      if (!mounted) return;
+      setState(() => _monitoringOn = on);
+    }, onError: (e) => debugPrint('MONITORING ERROR: $e'));
+  }
+
+  // baca status alarm dari database
+  void _listenAlarm() {
+    _alarmSub = _alarmRef.onValue.listen((event) {
+      final v = event.snapshot.value;
+      if (v == null) return; // node belum ada, pakai nilai bawaan (ON)
+
+      final on = v == 1 || v == true || v == '1';
+      if (!mounted) return;
+      setState(() => _alarmOn = on);
+    }, onError: (e) => debugPrint('ALARM ERROR: $e'));
+  }
+
   @override
   void dispose() {
     _sensorSub?.cancel();
+    _monitoringSub?.cancel();
+    _alarmSub?.cancel();
     super.dispose();
   }
 
-  void _toggleMonitoring() {
-    setState(() => _monitoringOn = !_monitoringOn);
+  // tekan pill: ubah tampilan langsung, lalu kirim perintah ke database
+  Future<void> _toggleMonitoring() async {
+    final next = !_monitoringOn;
+    setState(() => _monitoringOn = next);
+
+    try {
+      await _monitoringRef.set(next ? 1 : 0);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _monitoringOn = !next); // gagal kirim, kembalikan
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal terhubung ke alat')),
+      );
+    }
+  }
+
+  // geser switch alarm: ubah tampilan langsung, lalu kirim ke database
+  Future<void> _toggleAlarm(bool next) async {
+    setState(() => _alarmOn = next);
+
+    try {
+      await _alarmRef.set(next ? 1 : 0);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _alarmOn = !next); // gagal kirim, kembalikan
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Gagal terhubung ke alat')),
+      );
+    }
   }
 
   // format jam, contoh: 8:30 AM
@@ -178,6 +244,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Expanded(
             child: Container(
               width: double.infinity,
+              clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: AppColor.cream,
                 borderRadius: BorderRadius.vertical(
@@ -422,7 +489,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               Switch(
                 value: _alarmOn,
-                onChanged: on ? (v) => setState(() => _alarmOn = v) : null,
+                onChanged: on ? _toggleAlarm : null,
               ),
             ],
           ),

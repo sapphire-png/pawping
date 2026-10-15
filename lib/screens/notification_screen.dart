@@ -45,6 +45,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           Expanded(
             child: Container(
               width: double.infinity,
+              clipBehavior: Clip.antiAlias,
               decoration: const BoxDecoration(
                 color: AppColor.cream,
                 borderRadius: BorderRadius.vertical(
