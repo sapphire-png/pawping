@@ -6,6 +6,7 @@ import '../../core/constants/app_color.dart';
 import '../../widgets/bottom_navbar.dart';
 import '../../screens/activity_log_screen.dart';
 import '../screens/notification_screen.dart';
+import '../screens/wifi_setup_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final String petName;
@@ -42,6 +43,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       FirebaseDatabase.instance.ref('control/alarm');
   StreamSubscription<DatabaseEvent>? _alarmSub;
 
+  // status/waktu : heartbeat alat (berubah tiap ~10 detik selama alat online)
+  StreamSubscription<DatabaseEvent>? _heartbeatSub;
+  Timer? _onlineTimer;
+  DateTime _lastBeat = DateTime.now();
+  bool _deviceOnline = true;
+
   // Variabel pengaman agar pop-up tidak muncul berulang kali secara bertumpuk
   bool _isDialogShowing = false;
 
@@ -54,6 +61,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _listenSensor();
     _listenMonitoring();
     _listenAlarm();
+    _listenHeartbeat();
   }
 
   void _listenSensor() {
@@ -112,7 +120,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   const Divider(height: 24),
                   const SizedBox(height: 8),
                   Text(
-                    'Hooman, Pet movement detected!',
+                    'Human, Pet movement detected!',
                     style: _body(18, AppColor.navy),
                     textAlign: TextAlign.center,
                   ),
@@ -171,11 +179,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }, onError: (e) => debugPrint('ALARM ERROR: $e'));
   }
 
+  // alat dianggap offline kalau heartbeat tidak berubah > 35 detik
+  void _listenHeartbeat() {
+    _heartbeatSub = FirebaseDatabase.instance
+        .ref('status/waktu')
+        .onValue
+        .listen((event) {
+      _lastBeat = DateTime.now();
+      if (mounted && !_deviceOnline) setState(() => _deviceOnline = true);
+    }, onError: (e) => debugPrint('HEARTBEAT ERROR: $e'));
+
+    _onlineTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      final online =
+          DateTime.now().difference(_lastBeat) < const Duration(seconds: 35);
+      if (mounted && online != _deviceOnline) {
+        setState(() => _deviceOnline = online);
+      }
+    });
+  }
+
+  void _openWifiSetup() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const WifiSetupScreen()),
+    );
+  }
+
+  Widget _offlineBanner() {
+    return GestureDetector(
+      onTap: _openWifiSetup,
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColor.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColor.red, width: 1.5),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.wifi_off, size: 18, color: AppColor.red),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'ESP32 offline. Tap untuk atur WiFi',
+                style: _body(16, AppColor.navy),
+              ),
+            ),
+            Icon(Icons.chevron_right, color: AppColor.navy),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _sensorSub?.cancel();
     _monitoringSub?.cancel();
     _alarmSub?.cancel();
+    _heartbeatSub?.cancel();
+    _onlineTimer?.cancel();
     super.dispose();
   }
 
@@ -254,6 +318,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(20, 28, 20, 20),
                 children: [
+                  if (!_deviceOnline) ...[
+                    _offlineBanner(),
+                    SizedBox(height: 14),
+                  ],
                   _monitoringPill(),
                   SizedBox(height: 20),
                   _pawDetectorCard(),
@@ -292,6 +360,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: _pixel(10, AppColor.white),
                 ),
                 Spacer(),
+                GestureDetector(
+                  onTap: _openWifiSetup,
+                  child: Icon(Icons.wifi, color: AppColor.white, size: 18),
+                ),
+                SizedBox(width: 14),
                 GestureDetector(
                   onTap: () => Navigator.push(
                     context,

@@ -6,6 +6,8 @@ class CustomTextField extends StatelessWidget {
   final String hint;
   final TextEditingController controller;
   final TextInputType keyboardType;
+  final bool obscureText;
+  final Widget? suffixIcon;
 
   const CustomTextField({
     super.key,
@@ -13,6 +15,8 @@ class CustomTextField extends StatelessWidget {
     required this.hint,
     required this.controller,
     this.keyboardType = TextInputType.text,
+    this.obscureText = false,
+    this.suffixIcon,
   });
 
   OutlineInputBorder _border(Color color) => OutlineInputBorder(
@@ -40,6 +44,7 @@ class CustomTextField extends StatelessWidget {
         TextField(
           controller: controller,
           keyboardType: keyboardType,
+          obscureText: obscureText,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(
@@ -53,6 +58,7 @@ class CustomTextField extends StatelessWidget {
               const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
             enabledBorder: _border(AppColor.fieldBorder),
             focusedBorder: _border(AppColor.navy),
+            suffixIcon: suffixIcon,
           ),
         ),
       ],

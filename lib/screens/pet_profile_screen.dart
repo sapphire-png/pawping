@@ -57,6 +57,7 @@ class _PetProfileScreenState extends State<PetProfileScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Gagal menyimpan ke database: $e')),
       );
