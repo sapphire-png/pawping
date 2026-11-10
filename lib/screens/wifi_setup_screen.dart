@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_database/firebase_database.dart';
 import '../../core/constants/app_color.dart';
 import '../../data/services/esp32_ble_service.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 
 class WifiSetupScreen extends StatefulWidget {
-  const WifiSetupScreen({super.key});
+  /// true kalau aplikasi mengira ESP32 sedang online (tersambung WiFi lama)
+  final bool espOnline;
+  const WifiSetupScreen({super.key, this.espOnline = false});
 
   @override
   State<WifiSetupScreen> createState() => _WifiSetupScreenState();
@@ -37,6 +40,19 @@ class _WifiSetupScreenState extends State<WifiSetupScreen> {
     });
   }
 
+  // minta ESP32 yang masih online masuk mode setup (Bluetooth) lewat Firebase
+  Future<void> _requestSetupMode() async {
+    _setStatus('Meminta ESP32 masuk mode setup...');
+    try {
+      await FirebaseDatabase.instance
+          .ref('control/setup')
+          .set(1)
+          .timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // abaikan: kalau gagal, pencarian Bluetooth tetap dicoba
+    }
+  }
+
   Future<void> _kirim() async {
     if (_busy) return;
     final ssid = _ssidC.text.trim();
@@ -47,6 +63,7 @@ class _WifiSetupScreenState extends State<WifiSetupScreen> {
     }
 
     setState(() => _busy = true);
+    if (widget.espOnline) await _requestSetupMode();
     final result = await _service.sendWifi(
       ssid: ssid,
       password: pass,

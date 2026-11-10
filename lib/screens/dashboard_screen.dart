@@ -92,7 +92,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
 
       // Memunculkan pop-up kustom ketika ada gerakan terdeteksi
-      if (gerak == 1 && !_isDialogShowing && mounted && _monitoringOn) {
+      if (gerak == 1 &&
+          !_isDialogShowing &&
+          mounted &&
+          _monitoringOn &&
+          (ModalRoute.of(context)?.isCurrent ?? false)) {
         _isDialogShowing = true;
 
         showDialog(
@@ -201,7 +205,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void _openWifiSetup() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const WifiSetupScreen()),
+      MaterialPageRoute(builder: (_) => WifiSetupScreen(espOnline: _deviceOnline)),
     );
   }
 

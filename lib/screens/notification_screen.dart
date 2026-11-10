@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:pawping/core/constants/app_color.dart';
 import 'package:pawping/data/models/notification_model.dart';
+import 'package:pawping/screens/activity_log_screen.dart';
 import 'package:pawping/widgets/bottom_navbar.dart';
 import 'package:pawping/widgets/notification_card.dart';
 
@@ -19,10 +20,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   void _onNavTap(int index) {
     if (index == 0) {
-      Navigator.pop(context); // balik ke Dashboard
+      // balik ke Dashboard (route pertama), apa pun jalur yang dilalui
+      Navigator.popUntil(context, (route) => route.isFirst);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Activity Log belum dibuat')),
+      // buka Activity Log di atas Dashboard dan buang halaman Notifications
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (_) => const ActivityLogScreen()),
+        (route) => route.isFirst,
       );
     }
   }
