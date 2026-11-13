@@ -9,7 +9,7 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        // return android;
+        return android;
       case TargetPlatform.iOS:
         throw UnsupportedError('DefaultFirebaseOptions have not been configured for ios.');
       case TargetPlatform.macOS:
@@ -33,12 +33,12 @@ class DefaultFirebaseOptions {
     storageBucket: 'pawping-97cb4.firebasestorage.app',
   );
 
-  // static const FirebaseOptions android = FirebaseOptions(
-  //   apiKey: 'ISI_DENGAN_ANDROID_API_KEY_KAMU',
-  //   appId: 'ISI_DENGAN_ANDROID_APP_ID_KAMU',
-  //   messagingSenderId: 'ISI_DENGAN_SENDER_ID_KAMU',
-  //   projectId: 'pawping',
-  //   databaseURL: 'ISI_DENGAN_DATABASE_URL_KAMU',
-  //   storageBucket: 'pawping.appspot.com',
-  // );
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'ISI_DARI_current_key',
+    appId: 'ISI_DARI_mobilesdk_app_id',
+    messagingSenderId: '347011716292',
+    projectId: 'pawping-97cb4',
+    databaseURL: 'https://pawping-97cb4-default-rtdb.asia-southeast1.firebasedatabase.app',
+    storageBucket: 'ISI_DARI_storage_bucket',
+  );
 }
